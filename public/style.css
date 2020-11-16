@@ -95,10 +95,16 @@ img {
 }
 
 .hero{
-    color: darkslategray;
+    color: #05386B;
     text-align: center;
     padding: 1em 0;
-    background:lightblue;
+    background:#8EE4AF;
+}
+
+footer {
+    color: #05386B;
+    background: #edffe1;
+    text-align: center;
 }
 
 .btn{
