@@ -8,7 +8,7 @@
         :key="photoIndex"
         v-show="photoIndex === currentIndex">
         <div class="slider-image-wrapper">
-          <img class="slider-image" :src="photos[photoIndex].getUrl({maxWidth: 700, maxHeight: 700})">
+          <img class="slider-image" :src="photos[photoIndex].location">
             <div
               class="btn attribution-btn"
               v-html="photos[photoIndex].html_attributions[0]"
@@ -28,28 +28,24 @@
 </template>
 
 <script>
-import test from '@/mylib';
-import gmapsInit from '@/gmaps';
+import axios from 'axios';
 import json from './json/state_capitals.json';
 
 export default {
   name: 'CapitalImage',
   props: {
     locationCode: String,
-    key: String,
   },
   data() {
     return {
       capitals: json,
       message: 'foo',
-      ApiEndpoint: 'https://maps.googleapis.com/maps/api/streetview?',
-      PlacesDetailsEndpoint: 'https://maps.googleapis.com/maps/api/place/details/json?',
-      api_key: process.env.GOOGLE_API_KEY,
+      placesDetailsEndpoint: process.env.VUE_APP_PLACES_ENDPOINT,
+      placesPhotosEndpoint: process.env.VUE_APP_PHOTOS_ENDPOINT,
       photos: null,
       currentIndex: 0,
+      loadIndexes: [],
       loadedIndexes: [],
-      googleService: null,
-      google: null,
     };
   },
   computed: {
@@ -58,12 +54,26 @@ export default {
     locationCode() {
       this.refresh();
     },
+    loadIndexes: {
+      deep: true,
+      handler(newVal) {
+        console.log('in watch loadedindex');
+        console.log(this.photos);
+        console.log(newVal);
+        console.log('in watch loadedindex');
+        newVal.forEach((index) => {
+          if (!('location' in this.photos[index])) {
+            this.fetchPlacePhoto(index);
+          }
+        });
+      },
+    },
   },
   methods: {
     incrementUp() {
-      if (!this.loadedIndexes.includes(this.currentIndex + 2)
+      if (!this.loadIndexes.includes(this.currentIndex + 2)
       && (this.currentIndex < this.photos.length - 2)) {
-        this.loadedIndexes.push(this.currentIndex + 2);
+        this.loadIndexes.push(this.currentIndex + 2);
       }
       if (this.currentIndex + 1 >= this.photos.length) { return; }
       this.currentIndex += 1;
@@ -77,44 +87,34 @@ export default {
       if (this.currentIndex <= 0) { return; }
       this.currentIndex -= 1;
     },
-    refresh() {
-      const request = {
-        placeId: this.locationCode,
-        fields: ['photos', 'geometry'],
-      };
-      this.googleService.getDetails(request, (place, status) => {
-        if (status === this.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('status OK');
-          console.log(place.photos);
-          this.photos = place.photos;
-          this.loadedIndexes = [0, 1];
+    fetchPlaceDetail() {
+      console.log('fetching place data');
+      axios
+        .get(`${this.placesDetailsEndpoint}/${this.locationCode}`)
+        .then((response) => {
+          console.log(response.data);
+          this.photos = response.data.photos;
+          this.loadIndexes.push(0, 1);
           this.currentIndex = 0;
-        }
-      });
+        });
+    },
+    fetchPlacePhoto(index) {
+      console.log('fetching photo');
+      axios
+        .get(`${this.placesPhotosEndpoint}/${this.photos[index].photo_reference}`)
+        .then((response) => {
+          this.photos[index].location = response.data.location;
+          this.loadedIndexes.push(index);
+        });
+    },
+    refresh() {
+      this.loadIndexes.length = 0;
+      this.loadedIndexes.length = 0;
+      this.fetchPlaceDetail();
     },
   },
-  async mounted() {
-    console.log(test.foo());
-    try {
-      this.google = await gmapsInit();
-      // const geocoder = new google.maps.Geocoder();
-      const request = {
-        placeId: this.locationCode,
-        fields: ['photos', 'geometry'],
-      };
-
-      this.googleService = new this.google.maps.places.PlacesService(document.getElementById('imgs'));
-      this.googleService.getDetails(request, (place, status) => {
-        if (status === this.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('status OK');
-          console.log(place.photos);
-          this.photos = place.photos;
-          this.loadedIndexes.push(0, 1);
-        }
-      });
-    } catch (error) {
-      console.error(error);
-    }
+  mounted() {
+    this.refresh();
   },
 };
 </script>
